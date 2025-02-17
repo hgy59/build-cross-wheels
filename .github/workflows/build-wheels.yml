@@ -1,0 +1,52 @@
+name: Build Wheels
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build_wheels:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, i686, aarch64, armv7l]
+        python-version: ["cp310", "cp311", "cp312", "cp313"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU for ARM builds
+        if: matrix.arch == 'aarch64' || matrix.arch == 'armv7l'
+        uses: docker/setup-qemu-action@v3
+
+      - name: Run cibuildwheel inside manylinux container
+        run: |
+          docker run --rm -e CIBW_ARCHS_LINUX=${{ matrix.arch }} \
+                     -e CIBW_BUILD=${{ matrix.python-version }}-* \
+                     -e CIBW_SKIP="pp*" \
+                     -e CIBW_MANYLINUX_X86_64_IMAGE="manylinux2014" \
+                     -e CIBW_MANYLINUX_I686_IMAGE="manylinux2014" \
+                     -e CIBW_MANYLINUX_AARCH64_IMAGE="manylinux2014" \
+                     -e CIBW_MANYLINUX_ARMV7L_IMAGE="manylinux2014" \
+                     quay.io/pypa/manylinux2014_${{ matrix.arch }} \
+                     bash -c "
+                     yum install -y wget &&
+                     wget -qO- https://install.python-poetry.org | python3 - &&
+                     ln -s /opt/python/${{ matrix.python-version }}*/bin/python /usr/bin/python3 &&
+                     ln -s /opt/python/${{ matrix.python-version }}*/bin/pip /usr/bin/pip &&
+                     pip install --upgrade pip setuptools wheel &&
+                     pip install -r src/requirements.txt &&
+                     mkdir -p wheelhouse &&
+                     pip wheel --no-deps -w wheelhouse -r src/requirements.txt
+                     "
+
+      - name: Upload built wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: built-wheels-${{ matrix.arch }}-${{ matrix.python-version }}
+          path: wheelhouse/*.whl
+
