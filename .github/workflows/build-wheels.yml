@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [x86_64, i686, aarch64, armv7l]
+        arch: [x86_64, i686, aarch64]
         python-version: ["cp310", "cp311", "cp312", "cp313"]
 
     steps:
@@ -28,16 +28,16 @@ jobs:
           docker run --rm -e CIBW_ARCHS_LINUX=${{ matrix.arch }} \
                      -e CIBW_BUILD=${{ matrix.python-version }}-* \
                      -e CIBW_SKIP="pp*" \
+                     -e CIBW_ENVIRONMENT="PATH=/opt/python/${{ matrix.python-version }}*/bin:\$PATH" \
                      -e CIBW_MANYLINUX_X86_64_IMAGE="manylinux2014" \
                      -e CIBW_MANYLINUX_I686_IMAGE="manylinux2014" \
                      -e CIBW_MANYLINUX_AARCH64_IMAGE="manylinux2014" \
                      -e CIBW_MANYLINUX_ARMV7L_IMAGE="manylinux2014" \
                      quay.io/pypa/manylinux2014_${{ matrix.arch }} \
                      bash -c "
-                     yum install -y wget &&
-                     wget -qO- https://install.python-poetry.org | python3 - &&
-                     ln -s /opt/python/${{ matrix.python-version }}*/bin/python /usr/bin/python3 &&
-                     ln -s /opt/python/${{ matrix.python-version }}*/bin/pip /usr/bin/pip &&
+                     yum install -y wget ninja-build cmake meson &&
+                     export PATH=/opt/python/${{ matrix.python-version }}*/bin:\$PATH &&
+                     python3 -m ensurepip &&
                      pip install --upgrade pip setuptools wheel &&
                      pip install -r src/requirements.txt &&
                      mkdir -p wheelhouse &&
